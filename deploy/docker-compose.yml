@@ -1,0 +1,32 @@
+version: '3'
+services:
+  molior:
+    image: molior:1.4.0
+    entrypoint:
+      - /usr/bin/supervisord
+    volumes:
+      - molior_data:/var/lib/molior:rw
+      - postgres_data:/var/lib/postgresql:rw
+    ports:
+      - "8000:80"
+    environment:
+      - DEBSIGN_NAME="Molior"
+      - DEBSIGN_EMAIL="debsign@molior.info"
+  aptly:
+    image: molior-aptly:1.4.0
+    entrypoint:
+      - /usr/bin/supervisord
+    volumes:
+      - aptly_data:/var/lib/aptly:rw
+    ports:
+    - "3142:3142"
+    environment:
+    - REPOSIGN_NAME="Molior"
+    - REPOSIGN_EMAIL="reposign@molior.info"
+    - APTLY_USER=molior
+    - APTLY_PASS=molior-dev
+
+volumes:
+  aptly_data:
+  molior_data:
+  postgres_data:
