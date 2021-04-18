@@ -211,7 +211,9 @@ async def get_apt_sources2(request):
     apt_url = cfg.aptly.get("apt_url_public")
     if not apt_url:
         apt_url = cfg.aptly.get("apt_url")
-    keyfile = cfg.aptly.get("key")
+    keyfile = cfg.aptly.get("apt_key_file")
+    if not keyfile:
+        keyfile = cfg.aptly.get("key")
 
     sources_list = "# APT Sources for mirror {0} {1}\n".format(name, version)
     sources_list += "# GPG-Key: {0}/{1}\n\n".format(apt_url, keyfile)

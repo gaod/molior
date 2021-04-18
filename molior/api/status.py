@@ -53,7 +53,10 @@ async def get_status(request):
     apt_url = cfg.aptly.get("apt_url_public")
     if not apt_url:
         apt_url = cfg.aptly.get("apt_url")
-    gpgurl = apt_url + "/" + cfg.aptly.get("key")
+    keyfile = cfg.aptly.get("apt_key_file")
+    if not keyfile:
+        keyfile = cfg.aptly.get("key")
+    gpgurl = apt_url + "/" + keyfile
     status = {
         "version": MOLIOR_VERSION,
         "maintenance_message": maintenance_message,
