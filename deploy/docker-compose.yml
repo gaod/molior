@@ -1,7 +1,7 @@
 version: '3'
 services:
   molior:
-    image: molior:1.4.1-rc7
+    image: molior:1.4.1-rc9
     entrypoint:
       - /usr/bin/supervisord
     volumes:
@@ -18,7 +18,7 @@ services:
       - APTLY_PASS=secret77
       - APTLY_PUBLIC_URL=http://localhost:3142
   aptly:
-    image: molior-aptly:1.4.1-rc3
+    image: molior-aptly:1.4.1-rc9
     entrypoint:
       - /usr/bin/supervisord
     volumes:
