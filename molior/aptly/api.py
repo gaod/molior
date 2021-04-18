@@ -874,7 +874,7 @@ def get_aptly_connection():
     aptly_user = cfg.aptly.get("api_user")
     if not aptly_user:
         aptly_user = cfg.aptly.get("user")
-    aptly_passwd = cfg.aptly.get("api_passwd")
+    aptly_passwd = cfg.aptly.get("api_pass")
     if not aptly_passwd:
         aptly_passwd = cfg.aptly.get("pass")
     aptly = AptlyApi(api_url, gpg_key, username=aptly_user, password=aptly_passwd)
