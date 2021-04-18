@@ -1,7 +1,6 @@
 #!/bin/sh
 
 sed -i -e '/::/d' -e 's/localhost/molior/' /etc/nginx/sites-enabled/molior-web
-
-# FIXME: remove default site
+rm -f /etc/nginx/sites-enabled/default
 
 exec /usr/sbin/nginx
