@@ -36,9 +36,9 @@ aptly:
     apt_url: 'http://molior:3142'
     api_url: 'http://127.0.0.1:8080/api'
     gpg_key: 'reposign@molior.info'
-    user: 'molior'
-    pass: 'molior-dev'
-    key: 'archive-keyring.asc'
+    api_user: 'molior'
+    api_pass: 'molior-dev'
+    apt_key_file: 'archive-keyring.asc'
 
 # Gitlab-API settings
 #gitlab:
