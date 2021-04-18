@@ -14,6 +14,12 @@ su molior -c "gpg1 --armor --export $DEBSIGN_EMAIL | gpg1 --import --no-default-
 sed -i 's/127.0.0.1/molior/' /etc/molior/molior.yml
 sed -i "s/\( \+apt_url: \).*/\1'http:\/\/aptly:3142'/" /etc/molior/molior.yml
 sed -i "s/\( \+api_url: \).*/\1'http:\/\/aptly:8080\/api'/" /etc/molior/molior.yml
+sed -i "s/\(debsign_gpg_email: \).*/\1'$DEBSIGN_EMAIL'/" /etc/molior/molior.yml
+sed -i "s/\( \+pass: \).*/\1'$MOLIOR_ADMIN_PASS'/" /etc/molior/molior.yml
+sed -i "s/.*apt_url_public: .*/'$APTLY_PUBLIC_URL'/" /etc/molior/molior.yml
+sed -i "s/\( \+gpg_key: \).*/\1'$REPOSIGN_EMAIL'/" /etc/molior/molior.yml
+sed -i "s/\( \+api_user: \).*/\1'$APTLY_USER'/" /etc/molior/molior.yml
+sed -i "s/\( \+api_pass: \).*/\1'$APTLY_PASSWD'/" /etc/molior/molior.yml
 
 # wait a bit for database
 sleep 5
