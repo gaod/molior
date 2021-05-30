@@ -1,7 +1,7 @@
 version: '3'
 services:
   molior:
-    image: neolynx/molior:VERSION
+    image: neolynx/molior:1.4.1-rc16
     entrypoint:
       - /usr/bin/supervisord
     volumes:
@@ -20,7 +20,7 @@ services:
       - APTLY_PASS=secret77
       - APTLY_PUBLIC_URL=http://localhost:3142
   aptly:
-    image: neolynx/molior-aptly:VERSION
+    image: neolynx/molior-aptly:1.4.1-rc16
     entrypoint:
       - /usr/bin/supervisord
     volumes:
