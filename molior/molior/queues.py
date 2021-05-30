@@ -26,7 +26,10 @@ async def enqueue(queue, item):
 
 
 async def dequeue(queue):
-    ret = await queue.get()
+    try:
+        ret = await queue.get()
+    except (RuntimeError, asyncio.CancelledError):
+        return
     queue.task_done()
     return ret
 
