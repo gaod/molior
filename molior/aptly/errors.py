@@ -1,8 +1,8 @@
 class AptlyError(Exception):
     """Base exception for all aptly specific errors."""
 
-    def __init__(self, error, meta):
-        super(AptlyError, self).__init__("Error: {0}\nMeta: {1}".format(error, meta))
+    def __init__(self, error):
+        super(AptlyError, self).__init__(error)
 
 
 class HTTPError(Exception):
