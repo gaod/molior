@@ -55,7 +55,9 @@ async def startup_migration():
                     snapshot_name = "{}-{}-".format(publish_name, dist)
                     if aptly_snapshot_name.startswith(snapshot_name):
                         task_id = await aptly.snapshot_rename(aptly_snapshot_name, "{}-{}".format(publish_name, dist))
-                        await aptly.wait_task(task_id)
+                        ret = await aptly.wait_task(task_id)
+                        if not ret:
+                            logger.error("Error renaming snapshot")
 
             found = False
             for a in aptly_repos:
@@ -1172,9 +1174,12 @@ class AptlyWorker:
 
         for repo_name in aptly_delete:
             task_id = await aptly.repo_packages_delete(repo_name, aptly_delete[repo_name])
-            await aptly.wait_task(task_id)
+            ret = await aptly.wait_task(task_id)
+            if not ret:
+                logger.error("Error deleting package files")
 
         for pv in projectversions:
+            # FIXME: check ret
             await aptly.republish(dist, projectversions[pv][0], projectversions[pv][1])
 
         for bid in build_ids:

@@ -303,9 +303,7 @@ def test_init():
         project_name = "testproject"
         project_version = "1"
         archs = []
-        repo = DebianRepository(
-            basemirror_name, basemirror_version, project_name, project_version, archs
-        )
+        repo = DebianRepository(basemirror_name, basemirror_version, project_name, project_version, archs)
         repo.DISTS = ["stable"]
 
         loop.run_until_complete(repo.init())

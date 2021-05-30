@@ -85,14 +85,20 @@ class DebianRepository:
 
             # package_refs = await self.__get_packages(dist == "unstable")
             task_id = await self.aptly.snapshot_create(repo_name, snapshot_name)
-            await self.aptly.wait_task(task_id)
+            ret = await self.aptly.wait_task(task_id)
+            if not ret:
+                logger.error("aptly: error creating snapshot")
+                return False
 
             # Add source and all archs per default
             archs = self.archs + ["source", "all"]
 
             logger.debug("publishing snapshot: '%s' archs: '%s'", snapshot_name, str(archs))
             task_id = await self.aptly.snapshot_publish(snapshot_name, "main", archs, dist, self.publish_name)
-            await self.aptly.wait_task(task_id)
+            ret = await self.aptly.wait_task(task_id)
+            if not ret:
+                logger.error("aptly: error publishing snapshot")
+                return False
         return True
 
     async def snapshot(self, snapshot_version, packages):
@@ -115,15 +121,22 @@ class DebianRepository:
             package_refs += pkgs
 
         task_id = await self.aptly.snapshot_create(repo_name, snapshot_name, package_refs)
-        await self.aptly.wait_task(task_id)
+        ret = await self.aptly.wait_task(task_id)
+        if not ret:
+            logger.error("aptly: error creating snapshot")
+            return False
 
         archs = self.archs.extend(["source", "all"])
         task_id = await self.aptly.snapshot_publish(snapshot_name, "main", archs, dist, publish_name)
-        await self.aptly.wait_task(task_id)
+        ret = await self.aptly.wait_task(task_id)
+        if not ret:
+            logger.error("aptly: error publishing snapshot")
+            return False
+        return True
 
     async def delete(self):
         """
-        Delete a repository including publish point amd snapshots
+        Delete a repository including publish point and snapshots
         """
         for dist in self.DISTS:
             repo_name = self.name + "-%s" % dist
@@ -141,7 +154,9 @@ class DebianRepository:
             snapshot_name = get_snapshot_name(self.publish_name, dist)
             try:
                 task_id = await self.aptly.snapshot_delete(snapshot_name)
-                await self.aptly.wait_task(task_id)
+                ret = await self.aptly.wait_task(task_id)
+                if not ret:
+                    logger.error("aptly: error deleting snapshot")
             except Exception:
                 logger.warning("Error deleting snapshot '%s'" % snapshot_name)
 
@@ -149,7 +164,9 @@ class DebianRepository:
             snapshot_name = get_snapshot_name(self.publish_name, dist, temporary=True)
             try:
                 task_id = await self.aptly.snapshot_delete(snapshot_name)
-                await self.aptly.wait_task(task_id)
+                ret = await self.aptly.wait_task(task_id)
+                if not ret:
+                    logger.error("aptly: error deleting snapshot")
             except Exception:
                 pass
 
@@ -217,13 +234,10 @@ class DebianRepository:
         repo_name = self.name + "-%s" % dist
         task_id, upload_dir = await self.aptly.repo_add(repo_name, files)
 
-        logger.debug("repo add returned aptly task id '%s' and upload dir '%s'", task_id, upload_dir)
-        logger.debug("waiting for repo add task with id '%s' to finish", task_id)
-
-        await self.aptly.wait_task(task_id)
-
-        logger.debug("repo add task with id '%s' has finished", task_id)
-        logger.debug("deleting temporary upload dir: '%s'", upload_dir)
+        ret = await self.aptly.wait_task(task_id)
+        if not ret:
+            logger.error("Error adding package files")
+            return False
 
         await self.aptly.delete_directory(upload_dir)
-        await self.aptly.republish(dist, repo_name, self.publish_name)
+        return await self.aptly.republish(dist, repo_name, self.publish_name)

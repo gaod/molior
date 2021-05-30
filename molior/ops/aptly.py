@@ -96,12 +96,13 @@ async def DebSrcPublish(build_id, repo_id, sourcename, version, projectversions,
         await buildlog(build_id, "I: publishing for %s\n" % fullname)
 
         debian_repo = DebianRepository(basemirror_name, basemirror_version, project_name, project_version, archs)
+        ret = False
         try:
-            await debian_repo.add_packages(publish_files, ci_build=is_ci)
-            ret = True
+            ret = await debian_repo.add_packages(publish_files, ci_build=is_ci)
         except Exception as exc:
-            await buildlog(build_id, "E: error adding files to projectversion {}\n".format(projectversion.fullname))
             logger.exception(exc)
+        if not ret:
+            await buildlog(build_id, "E: error adding files to projectversion {}\n".format(projectversion.fullname))
 
     await buildlog(build_id, "\n")
 
@@ -180,11 +181,11 @@ async def publish_packages(build_id, parent_parent_id, buildtype, sourcename, ve
     debian_repo = DebianRepository(basemirror_name, basemirror_version, project_name, project_version, archs)
     ret = False
     try:
-        await debian_repo.add_packages(files2upload, ci_build=is_ci)
-        ret = True
+        ret = await debian_repo.add_packages(files2upload, ci_build=is_ci)
     except Exception as exc:
-        await buildlog(build_id, "E: error uploading files to repository\n")
         logger.exception(exc)
+    if not ret:
+        await buildlog(build_id, "E: error uploading files to repository\n")
 
     files2delete = files2upload
     files2delete.append("{}/{}".format(out_path, changes_file))
