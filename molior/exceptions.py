@@ -6,8 +6,10 @@ class AptlyError(Exception):
 
 
 class HTTPError(Exception):
-    """Base exception for all http errors."""
+    pass
 
+
+class ConfigurationError(Exception):
     pass
 
 

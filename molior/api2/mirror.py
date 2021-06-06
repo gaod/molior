@@ -7,7 +7,7 @@ from ..auth import req_admin
 from ..tools import OKResponse, ErrorResponse, db2array, escape_for_like
 from ..molior.queues import enqueue_aptly
 
-from ..molior.configuration import Configuration
+from ..molior.configuration import AptlyConfiguration
 from ..model.project import Project
 from ..model.projectversion import ProjectVersion, get_mirror
 from ..model.mirrorkey import MirrorKey
@@ -207,16 +207,9 @@ async def get_apt_sources2(request):
     if not mirror:
         return ErrorResponse(404, "Mirror not found")
 
-    cfg = Configuration()
-    apt_url = cfg.aptly.get("apt_url_public")
-    if not apt_url:
-        apt_url = cfg.aptly.get("apt_url")
-    keyfile = cfg.aptly.get("apt_key_file")
-    if not keyfile:
-        keyfile = cfg.aptly.get("key")
-
+    cfg = AptlyConfiguration()
     sources_list = "# APT Sources for mirror {0} {1}\n".format(name, version)
-    sources_list += "# GPG-Key: {0}/{1}\n\n".format(apt_url, keyfile)
+    sources_list += "# GPG-Key: {0}/{1}\n\n".format(cfg.apt_url, cfg.keyfile)
     if mirror.project.is_basemirror:
         sources_list += "{}\n".format(mirror.get_apt_repo())
     elif mirror.basemirror:

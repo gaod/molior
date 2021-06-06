@@ -3,7 +3,7 @@ from sqlalchemy import func
 
 from ..app import app, logger
 from ..auth import req_role, req_admin
-from ..molior.configuration import Configuration
+from ..molior.configuration import AptlyConfiguration
 from ..model.project import Project
 from ..model.projectversion import ProjectVersion, get_projectversion_deps, get_projectversion
 from ..tools import ErrorResponse, paginate, is_name_valid, OKResponse
@@ -303,16 +303,9 @@ async def get_apt_sources(request):
     deps = [(projectversion.id, projectversion.ci_builds_enabled)]
     deps += get_projectversion_deps(projectversion.id, db)
 
-    cfg = Configuration()
-    apt_url = cfg.aptly.get("apt_url_public")
-    if not apt_url:
-        apt_url = cfg.aptly.get("apt_url")
-    keyfile = cfg.aptly.get("apt_key_file")
-    if not keyfile:
-        keyfile = cfg.aptly.get("key")
-
+    cfg = AptlyConfiguration()
     sources_list = "# APT Sources for project {0} {1}\n".format(projectversion.project.name, projectversion.name)
-    sources_list += "# GPG-Key: {0}/{1}\n".format(apt_url, keyfile)
+    sources_list += "# GPG-Key: {0}/{1}\n".format(cfg.apt_url, cfg.keyfile)
     if not projectversion.project.is_basemirror and projectversion.basemirror:
         sources_list += "# Base Mirror\n"
         sources_list += "{}\n".format(projectversion.basemirror.get_apt_repo())

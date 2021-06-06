@@ -3,9 +3,10 @@ import yaml
 from pathlib import Path
 
 from ..app import logger
+from ..exceptions import ConfigurationError
 
 
-class Configuration(object):  # pylint: disable=too-few-public-methods
+class Configuration(object):
     """
     Molior Configuration Class
     """
@@ -55,3 +56,27 @@ class Configuration(object):  # pylint: disable=too-few-public-methods
             self._load_config(self._config_file)
 
         return self._config.get(name, {})
+
+
+class AptlyConfiguration(Configuration):
+
+    def __init__(self):
+        super(Configuration, self).__init__()
+
+    @property
+    def apt_url(self):
+        t = self.aptly.get("apt_url_public")
+        if not t:
+            t = self.aptly.get("apt_url")
+        if not t:
+            raise ConfigurationError("missing configuration in /etc/molior.yml: aptly:apt_url_public")
+        return t
+
+    @property
+    def keyfile(self):
+        t = self.aptly.get("apt_key_file")
+        if not t:
+            t = self.aptly.get("key")
+        if not t:
+            raise ConfigurationError("missing configuration in /etc/molior.yml: aptly:apt_key_file")
+        return t

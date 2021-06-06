@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 
 from .database import Base
 from ..tools import db2array
-from ..molior.configuration import Configuration
+from ..molior.configuration import AptlyConfiguration
 
 
 class Chroot(Base):
@@ -18,20 +18,15 @@ class Chroot(Base):
 
     def get_mirror_url(self):
         if not self.basemirror.external_repo:
-            cfg = Configuration()
-            apt_url = cfg.aptly.get("apt_url")
-            repo_url = apt_url + "/" + self.basemirror.project.name + "/" + self.basemirror.name
+            cfg = AptlyConfiguration()
+            repo_url = cfg.apt_url + "/" + self.basemirror.project.name + "/" + self.basemirror.name
         else:
             repo_url = self.basemirror.mirror_url
         return repo_url
 
     def get_mirror_keys(self):
-        cfg = Configuration()
-        apt_url = cfg.aptly.get("apt_url")
-        keyfile = cfg.aptly.get("apt_key_file")
-        if not keyfile:
-            keyfile = cfg.aptly.get("key")
-        mirror_keys = apt_url + "/" + keyfile
+        cfg = AptlyConfiguration()
+        mirror_keys = cfg.apt_url + "/" + cfg.keyfile
         if self.basemirror.external_repo:
             if self.basemirror.mirror_keys:
                 if self.basemirror.mirror_keys[0].keyurl:

@@ -10,7 +10,7 @@ from ..app import logger
 from ..tools import db2array, array2db
 from ..ops import DebSrcPublish, DebPublish, DeleteBuildEnv
 from ..aptly import get_aptly_connection
-from ..aptly.errors import AptlyError, NotFoundError
+from ..exceptions import AptlyError, NotFoundError
 from .debianrepository import DebianRepository
 from .notifier import Subject, Event, notify, send_mail_notification
 from ..molior.queues import enqueue_task, enqueue_aptly, dequeue_aptly, buildlog, buildlogtitle, buildlogdone

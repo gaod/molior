@@ -7,7 +7,7 @@ from ..app import logger
 from ..molior.configuration import Configuration
 
 from .taskstate import TaskState
-from .errors import AptlyError
+from ..exceptions import AptlyError
 
 
 class AptlyApi:
