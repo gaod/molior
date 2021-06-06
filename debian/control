@@ -4,7 +4,7 @@ Priority: optional
 Standards-Version: 3.9.8
 Build-Depends: python3-all (>= 2.6.6-3), debhelper (>= 7), dh-python, dh-exec, python3-setuptools,
     python3-pytest, python3-pytest-cov, python3-coverage, python3-mock, python3-yaml, python3-sqlalchemy,
-    python3-jinja2, python3-sphinx, python3-sphinx-rtd-theme, python3-sphinxcontrib.plantuml,
+    python3-jinja2, python3-tz,
     python3-cirrina, python3-launchy, flake8, git
 Maintainer: André Roth <neolynx@gmail.com>
 
@@ -17,7 +17,6 @@ Depends: ${python3:Depends}, ${misc:Depends}, lsb-base (>= 3.0-6), dh-autoreconf
     bc, pxz | xz-utils (>= 5.2.4-1), python3-launchy, python3-dateutil, python3-async-cron,
     python3-giturlparse, python3-aiofile, openssh-client,
     debootstrap (>= 1.0.110~bpo9+1)
-Conflicts: molior-backend-http
 Tag: devel::buildtools
 Description: Debian Build System
  Debian Build System based on sbuild, schroot and aptly
@@ -33,14 +32,14 @@ Tag: devel::buildtools
 Description: Molior build node client
  Build node client for molior-server nodes (amd64 or arm64)
 
-Package: molior-doc
-Architecture: all
-Section: doc
-Depends: ${sphinxdoc:Depends}, ${misc:Depends}
-Suggests: ${sphinxdoc:Built-Using}
-Description: Molior package documentation
- This package provides the molior
-  documentation.
+#Package: molior-doc
+#Architecture: all
+#Section: doc
+#Depends: ${sphinxdoc:Depends}, ${misc:Depends}
+#Suggests: ${sphinxdoc:Built-Using}
+#Description: Molior package documentation
+# This package provides the molior
+#  documentation.
 
 Package: molior-os-config
 Section: misc
