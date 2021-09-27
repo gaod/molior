@@ -1,3 +1,12 @@
+molior (1.4.1~rc18) stretch; urgency=medium
+
+  * authenticate: trim username
+  * clone: fix response
+  * build log: use async with
+  * build delete: prevent removal builds from locked projectversion
+
+ -- André Roth <neolynx@gmail.com>  Mon, 27 Sep 2021 20:23:04 +0200
+
 molior (1.4.1~rc16) stretch; urgency=medium
 
   * bump version 1.4.1~rc16
