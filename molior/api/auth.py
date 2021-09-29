@@ -36,7 +36,7 @@ async def auth_admin(request, user, passwd):
 @app.auth_handler
 async def authenticate(request, user, passwd):
     """
-    Authenticates a user using locuples.
+    Authenticates a user.
 
     Args:
         user (str): The user's name.
