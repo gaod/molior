@@ -675,3 +675,25 @@ async def create_token(request):
     db.commit()
 
     return OKResponse()
+
+
+@app.http_delete("/api2/projectbase/{project_name}/tokens")
+async def delete_project_token(request):
+    """
+    Delete tokens for project
+    """
+    project_name = request.match_info["project_name"]
+    params = await request.json()
+    description = params.get("description")
+
+    db = request.cirrina.db_session
+    project = db.query(Project).filter_by(name=project_name).first()
+    if not project:
+        return ErrorResponse(404, "Project with name {} could not be found".format(project_name))
+
+    query = request.cirrina.db_session.query(AuthToken).filter(AuthToken.description == description)
+    token = query.first()
+    db.delete(token)
+    db.commit()
+
+    return OKResponse()
