@@ -1,4 +1,5 @@
 from sqlalchemy.sql import or_, func
+from uuid import uuid1
 
 from ..app import app
 from ..tools import ErrorResponse, OKResponse, array2db, is_name_valid, paginate, parse_int, db2array, escape_for_like
@@ -6,6 +7,7 @@ from ..auth import req_role
 from ..molior.queues import enqueue_aptly
 
 from ..model.project import Project
+from ..model.authtoken import AuthToken
 from ..model.projectversion import ProjectVersion, get_projectversion, DEPENDENCY_POLICIES
 from ..model.user import User
 from ..model.userrole import UserRole, USER_ROLES
@@ -621,6 +623,55 @@ async def delete_project_users2(request):
     query = query.filter(Project.id == project.id)
     userrole = query.first()
     db.delete(userrole)
+    db.commit()
+
+    return OKResponse()
+
+
+@app.http_get("/api2/projectbase/{project_name}/tokens")
+@app.authenticated
+async def get_tokens(request):
+    project_name = request.match_info["project_name"]
+
+    project = request.cirrina.db_session.query(Project).filter_by(name=project_name).first()
+    if not project:
+        return ErrorResponse(404, "Project with name {} could not be found!".format(project_name))
+
+    query = request.cirrina.db_session.query(AuthToken).filter(AuthToken.project_id == project.id)
+    query = paginate(request, query)
+    tokens = query.all()
+    data = {
+        "total_result_count": query.count(),
+        "results": [
+            {"id": token.id, "token": token.token, "description": token.description}
+            for token in tokens
+        ],
+    }
+    return OKResponse(data)
+
+
+@app.http_post("/api2/projectbase/{project_name}/tokens")
+@req_role("owner")
+async def create_token(request):
+    """
+    Create auth token
+    ---
+    """
+    project_name = request.match_info["project_name"]
+    params = await request.json()
+    description = params.get("description")
+
+    db = request.cirrina.db_session
+    project = db.query(Project).filter_by(name=project_name).first()
+    if not project:
+        return ErrorResponse(404, "Project with name {} could not be found".format(project_name))
+    if project.is_mirror:
+        return ErrorResponse(400, "Cannot create auth token for mirrors")
+
+    auth_token = str(uuid1())
+
+    token = AuthToken(description=description, project_id=project.id, token=auth_token)
+    db.add(token)
     db.commit()
 
     return OKResponse()
