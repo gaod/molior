@@ -138,17 +138,16 @@ class req_role(object):
                 return web.Response(status=503, text="Maintenance Mode")
 
             project_id = request.match_info.get("project_id")
+            if not project_id:
+                project_id = request.match_info.get("project_name")
             projectversion_id = request.match_info.get("projectversion_id")
-
-            if not project_id and not projectversion_id:
-                return web.Response(status=403)
 
             if not project_id and projectversion_id:
                 pv = request.cirrina.db_session.query(ProjectVersion).filter(
                                     ProjectVersion.id == parse_int(projectversion_id)).first()
                 if pv:
                     project_id = pv.project.id
-            else:
+            elif project_id:
                 # try finting project by name
                 p = request.cirrina.db_session.query(Project).filter(
                                     func.lower(Project.name) == project_id.lower()).first()
@@ -161,7 +160,9 @@ class req_role(object):
                     if p:
                         project_id = p.id
                     else:
-                        return web.Response(status=403)
+                        return web.Response(status=403, text="forbidden")
+            else:
+                return web.Response(status=403, text="forbidden")
 
             if check_user_role(request.cirrina.web_session,
                                request.cirrina.db_session,
@@ -170,6 +171,6 @@ class req_role(object):
                                self.allow_admin):
                 return await function(request)
 
-            return web.Response(status=403)
+            return web.Response(status=403, text="permission denied")
 
         return _wrapper

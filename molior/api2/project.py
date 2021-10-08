@@ -678,6 +678,7 @@ async def create_token(request):
 
 
 @app.http_delete("/api2/projectbase/{project_name}/tokens")
+@req_role("owner")
 async def delete_project_token(request):
     """
     Delete tokens for project
