@@ -6,6 +6,7 @@ CREATE TABLE authtoken (
     id integer NOT NULL,
     token character varying,
     description character varying,
+    role role_enum,
     project_id integer REFERENCES project(id)
 );
 ALTER TABLE authtoken OWNER TO molior;
