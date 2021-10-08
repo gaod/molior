@@ -674,7 +674,7 @@ async def create_token(request):
     db.add(token)
     db.commit()
 
-    return OKResponse()
+    return OKResponse({"token": auth_token})
 
 
 @app.http_delete("/api2/projectbase/{project_name}/tokens")
