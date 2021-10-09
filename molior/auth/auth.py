@@ -4,11 +4,13 @@ from functools import wraps
 from aiohttp import web
 from sqlalchemy.sql import func
 
-from ..app import logger
+from ..app import app, logger
 from ..tools import check_admin, check_user_role, parse_int
 from ..molior.configuration import Configuration
 from ..model.project import Project
 from ..model.projectversion import ProjectVersion
+from ..model.user import User
+from ..model.authtoken import AuthToken
 
 auth_backend = None
 
@@ -68,6 +70,71 @@ class Auth:
         return auth_backend.delete_user(user_id)
 
 
+@app.auth_handler
+async def auth_admin(request, user, passwd):
+    """
+    Authenticates admin user
+
+    Args:
+        user (str): The user's name.
+        passwd (str): The user's password.
+
+    Returns:
+        bool: True if successfully authenticated, otherwise False.
+    """
+    if not user:
+        return False
+    user = user.lower()
+    if user == "admin":
+        config = Configuration()
+        admin_pass = config.admin.get("pass")
+        if not admin_pass:
+            logger.info("admin password is not set in configuration")
+            return False
+        if passwd == admin_pass:
+            load_user("admin", request.cirrina.db_session)
+            return True
+    return False
+
+
+@app.auth_handler
+async def authenticate(request, user, passwd):
+    """
+    Authenticates a user.
+
+    Args:
+        user (str): The user's name.
+        passwd (str): The user's password.
+
+    Returns:
+        bool: True if successfully authenticated, otherwise False.
+    """
+    if not user:
+        return False
+    user = user.lower().strip()  # FIXME: move to cirrina
+    if user == "admin":
+        logger.error("admin account not allowed via auth plugin")
+        return False
+
+    return Auth().login(user, passwd)
+
+
+def load_user(user, db_session):
+    """
+    Load user from the database
+    """
+    res = db_session.query(User).filter_by(username=user).first()
+    if not res:  # add user to DB
+        db_user = User(username=user)
+
+        # make first user admin
+        if db_session.query(User).count() < 2:
+            db_user.is_admin = True
+
+        db_session.add(db_user)
+        db_session.commit()
+
+
 def req_admin(function):
     """
     Decorator to enforce admin privilege for a function
@@ -123,9 +190,7 @@ class req_role(object):
         async def _wrapper(request):
             maintenance_mode = False
             query = "SELECT value from metadata where name = :key"
-            result = request.cirrina.db_session.execute(
-                query, {"key": "maintenance_mode"}
-            )
+            result = request.cirrina.db_session.execute(query, {"key": "maintenance_mode"})
             for value in result:
                 if value[0] == "true":
                     maintenance_mode = True
