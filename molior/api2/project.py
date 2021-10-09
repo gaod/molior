@@ -643,7 +643,7 @@ async def get_tokens(request):
     data = {
         "total_result_count": query.count(),
         "results": [
-            {"id": token.id, "token": token.token, "description": token.description}
+            {"id": token.id, "description": token.description}
             for token in tokens
         ],
     }
