@@ -119,6 +119,25 @@ async def authenticate(request, user, passwd):
     return Auth().login(user, passwd)
 
 
+@app.auth_handler
+async def authenticate_token(request, *kw):
+    auth_token = request.headers.getone("X-AuthToken", None)
+    if not auth_token:
+        return False
+
+    project_name = request.match_info.get("project_name")
+    if project_name:
+        p = request.cirrina.db_session.query(Project).filter(func.lower(Project.name) == project_name.lower()).first()
+        if p:
+            project_id = p.id
+        token = request.cirrina.db_session.query(AuthToken).filter(AuthToken.project_id == project_id,
+                                                                   AuthToken.token == auth_token).first()
+        if token:
+            return True
+
+    return False
+
+
 def load_user(user, db_session):
     """
     Load user from the database
