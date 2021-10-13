@@ -6,8 +6,7 @@ CREATE TABLE authtoken (
     id integer NOT NULL,
     token character varying,
     description character varying,
-    role role_enum,
-    project_id integer REFERENCES project(id)
+    roles role_enum[],  # create-mirror, create-project, ...
 );
 ALTER TABLE authtoken OWNER TO molior;
 
@@ -22,4 +21,25 @@ CREATE SEQUENCE authtoken_id_seq
 ALTER TABLE authtoken_id_seq OWNER TO molior;
 ALTER SEQUENCE authtoken_id_seq OWNED BY authtoken.id;
 ALTER TABLE ONLY authtoken ALTER COLUMN id SET DEFAULT nextval('authtoken_id_seq'::regclass);
+
+
+CREATE TABLE authtoken_project (
+    id integer NOT NULL,
+    project_id integer REFERENCES project(id),
+    authtoken_id integer REFERENCES authtoken(id),
+    roles role_enum[],  # trigger-build, create-version, ...
+);
+ALTER TABLE authtoken_project OWNER TO molior;
+
+ALTER TABLE ONLY authtoken_project ADD CONSTRAINT authtoken_project_pkey PRIMARY KEY (id);
+
+CREATE SEQUENCE authtoken_project_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+ALTER TABLE authtoken_project_id_seq OWNER TO molior;
+ALTER SEQUENCE authtoken_project_id_seq OWNED BY authtoken_project.id;
+ALTER TABLE ONLY authtoken_project ALTER COLUMN id SET DEFAULT nextval('authtoken_project_id_seq'::regclass);
 EOF
