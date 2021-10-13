@@ -736,10 +736,12 @@ async def delete_project_token(request):
     query = query.filter(Authtoken_Project.authtoken_id == token_id)
     query = query.filter(Authtoken_Project.project_id == project.id)
     token = query.first()
-    if token:
-        db.delete(token)
-        db.commit()
 
-        # FIXME: delete Authtoken if not referenced by other projects
+    if not token:
+        return ErrorResponse(404, "Token with id {} could not be found".format(token_id))
+
+    # FIXME: delete Authtoken if not referenced by other projects
+    db.delete(token)
+    db.commit()
 
     return OKResponse()
