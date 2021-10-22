@@ -26,7 +26,7 @@ from .project import Project
 USER_ROLES = ["member", "manager", "owner"]
 
 
-class UserRole(Base):  # pylint: disable=too-few-public-methods
+class UserRole(Base):
     """
     Database model for a UserRole.
     """

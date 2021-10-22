@@ -6,7 +6,7 @@ CREATE TABLE authtoken (
     id integer NOT NULL,
     token character varying,
     description character varying,
-    roles role_enum[],  # create-mirror, create-project, ...
+    roles role_enum[]  -- create-mirror, create-project, ...
 );
 ALTER TABLE authtoken OWNER TO molior;
 
@@ -27,7 +27,7 @@ CREATE TABLE authtoken_project (
     id integer NOT NULL,
     project_id integer REFERENCES project(id),
     authtoken_id integer REFERENCES authtoken(id),
-    roles role_enum[],  # trigger-build, create-version, ...
+    roles role_enum[]  -- trigger-build, create-version, ...
 );
 ALTER TABLE authtoken_project OWNER TO molior;
 
