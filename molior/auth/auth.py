@@ -10,7 +10,7 @@ from ..molior.configuration import Configuration
 from ..model.project import Project
 from ..model.projectversion import ProjectVersion
 from ..model.user import User
-from ..model.authtoken import AuthToken
+from ..model.authtoken import Authtoken
 
 auth_backend = None
 
@@ -121,7 +121,7 @@ async def authenticate(request, user, passwd):
 
 @app.auth_handler
 async def authenticate_token(request, *kw):
-    auth_token = request.headers.getone("X-AuthToken", None)
+    auth_token = request.headers.getone("X-MoliorToken", None)
     if not auth_token:
         return False
 
@@ -130,8 +130,8 @@ async def authenticate_token(request, *kw):
         p = request.cirrina.db_session.query(Project).filter(func.lower(Project.name) == project_name.lower()).first()
         if p:
             project_id = p.id
-        token = request.cirrina.db_session.query(AuthToken).filter(AuthToken.project_id == project_id,
-                                                                   AuthToken.token == auth_token).first()
+        token = request.cirrina.db_session.query(Authtoken).filter(Authtoken.project_id == project_id,
+                                                                   Authtoken.token == auth_token).first()
         if token:
             return True
 

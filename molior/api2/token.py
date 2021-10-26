@@ -1,17 +1,17 @@
 from secrets import token_hex
 
 from ..app import app
-from ..tools import OKResponse, paginate
+from ..tools import OKResponse, paginate, array2db
 from ..auth import req_role
 
-from ..model.authtoken import AuthToken
+from ..model.authtoken import Authtoken
 
 
 @app.http_get("/api2/tokens")
 @app.authenticated
 async def get_tokens(request):
 
-    query = request.cirrina.db_session.query(AuthToken)
+    query = request.cirrina.db_session.query(Authtoken)
     query = paginate(request, query)
     tokens = query.all()
     data = {
@@ -36,8 +36,10 @@ async def create_token(request):
 
     db = request.cirrina.db_session
 
+    # FIXME: check existing description
+
     auth_token = token_hex(32)
-    token = AuthToken(description=description, token=auth_token)
+    token = Authtoken(description=description, token=auth_token, roles=array2db(['project_create', 'mirror_create']))
     db.add(token)
     db.commit()
 
@@ -54,7 +56,7 @@ async def delete_project_token(request):
     token_id = params.get("id")
 
     db = request.cirrina.db_session
-    query = request.cirrina.db_session.query(AuthToken).filter(AuthToken.id == token_id)
+    query = request.cirrina.db_session.query(Authtoken).filter(Authtoken.id == token_id)
     token = query.first()
     db.delete(token)
     db.commit()

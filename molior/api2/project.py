@@ -1,5 +1,5 @@
 from sqlalchemy.sql import or_, func
-from uuid import uuid1
+from secrets import token_hex
 
 from ..app import app
 from ..tools import ErrorResponse, OKResponse, array2db, is_name_valid, paginate, parse_int, db2array, escape_for_like
@@ -7,7 +7,8 @@ from ..auth import req_role
 from ..molior.queues import enqueue_aptly
 
 from ..model.project import Project
-from ..model.authtoken import AuthToken
+from ..model.authtoken import Authtoken
+from ..model.authtoken_project import Authtoken_Project
 from ..model.projectversion import ProjectVersion, get_projectversion, DEPENDENCY_POLICIES
 from ..model.user import User
 from ..model.userrole import UserRole, USER_ROLES
@@ -637,7 +638,8 @@ async def get_tokens(request):
     if not project:
         return ErrorResponse(404, "Project with name {} could not be found!".format(project_name))
 
-    query = request.cirrina.db_session.query(AuthToken).filter(AuthToken.project_id == project.id)
+    query = request.cirrina.db_session.query(Authtoken).outerjoin(Authtoken_Project).outerjoin(Project)
+    query = query.filter(Project.id == project.id)
     query = paginate(request, query)
     tokens = query.all()
     data = {
@@ -654,7 +656,7 @@ async def get_tokens(request):
 @req_role("owner")
 async def create_token(request):
     """
-    Create auth token
+    Create project auth token
     ---
     """
     project_name = request.match_info["project_name"]
@@ -668,10 +670,13 @@ async def create_token(request):
     if project.is_mirror:
         return ErrorResponse(400, "Cannot create auth token for mirrors")
 
-    auth_token = str(uuid1())
+    auth_token = token_hex(32)
 
-    token = AuthToken(description=description, project_id=project.id, token=auth_token)
+    token = Authtoken(description=description, token=auth_token)
     db.add(token)
+    db.commit()
+    mapping = Authtoken_Project(project_id=project.id, authtoken_id=token.id, roles=array2db(['owner']))
+    db.add(mapping)
     db.commit()
 
     return OKResponse({"token": auth_token})
@@ -681,7 +686,7 @@ async def create_token(request):
 @req_role("owner")
 async def delete_project_token(request):
     """
-    Delete tokens for project
+    Delete project auth token
     """
     project_name = request.match_info["project_name"]
     params = await request.json()
@@ -692,7 +697,7 @@ async def delete_project_token(request):
     if not project:
         return ErrorResponse(404, "Project with name {} could not be found".format(project_name))
 
-    query = request.cirrina.db_session.query(AuthToken).filter(AuthToken.id == token_id)
+    query = request.cirrina.db_session.query(Authtoken).filter(Authtoken.id == token_id)
     token = query.first()
     db.delete(token)
     db.commit()
