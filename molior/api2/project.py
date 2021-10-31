@@ -633,6 +633,7 @@ async def delete_project_users2(request):
 @app.authenticated
 async def get_tokens(request):
     project_name = request.match_info["project_name"]
+    description = request.GET.getone("description", "")
 
     project = request.cirrina.db_session.query(Project).filter_by(name=project_name).first()
     if not project:
@@ -640,6 +641,8 @@ async def get_tokens(request):
 
     query = request.cirrina.db_session.query(Authtoken).outerjoin(Authtoken_Project).outerjoin(Project)
     query = query.filter(Project.id == project.id)
+    if description:
+        query = query.filter(Authtoken.description.ilike("%{}%".format(description)))
     query = paginate(request, query)
     tokens = query.all()
     data = {
@@ -652,7 +655,7 @@ async def get_tokens(request):
     return OKResponse(data)
 
 
-@app.http_post("/api2/projectbase/{project_name}/tokens")
+@app.http_post("/api2/projectbase/{project_name}/token")
 @req_role("owner")
 async def create_token(request):
     """
@@ -670,6 +673,8 @@ async def create_token(request):
     if project.is_mirror:
         return ErrorResponse(400, "Cannot create auth token for mirrors")
 
+    # FIXME: check existing
+
     auth_token = token_hex(32)
 
     token = Authtoken(description=description, token=auth_token)
@@ -680,6 +685,36 @@ async def create_token(request):
     db.commit()
 
     return OKResponse({"token": auth_token})
+
+
+@app.http_put("/api2/projectbase/{project_name}/token")
+@req_role("owner")
+async def add_token(request):
+    """
+    Add existing auth token to project
+    ---
+    """
+    project_name = request.match_info["project_name"]
+    params = await request.json()
+    description = params.get("description")
+
+    db = request.cirrina.db_session
+    project = db.query(Project).filter_by(name=project_name).first()
+    if not project:
+        return ErrorResponse(404, "Project with name {} could not be found".format(project_name))
+    if project.is_mirror:
+        return ErrorResponse(400, "Cannot create auth token for mirrors")
+    token = db.query(Authtoken).filter_by(description=description).first()
+    if not token:
+        return ErrorResponse(404, "Authtoken with description '{}' could not be found".format(description))
+
+    # FIXME: check already added
+
+    mapping = Authtoken_Project(project_id=project.id, authtoken_id=token.id, roles=array2db(['owner']))
+    db.add(mapping)
+    db.commit()
+
+    return OKResponse()
 
 
 @app.http_delete("/api2/projectbase/{project_name}/tokens")
@@ -697,9 +732,14 @@ async def delete_project_token(request):
     if not project:
         return ErrorResponse(404, "Project with name {} could not be found".format(project_name))
 
-    query = request.cirrina.db_session.query(Authtoken).filter(Authtoken.id == token_id)
+    query = request.cirrina.db_session.query(Authtoken_Project)
+    query = query.filter(Authtoken_Project.authtoken_id == token_id)
+    query = query.filter(Authtoken_Project.project_id == project.id)
     token = query.first()
-    db.delete(token)
-    db.commit()
+    if token:
+        db.delete(token)
+        db.commit()
+
+        # FIXME: delete Authtoken if not referenced by other projects
 
     return OKResponse()

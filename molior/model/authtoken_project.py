@@ -1,10 +1,9 @@
-from sqlalchemy import Column, ForeignKey, Enum, PrimaryKeyConstraint
+from sqlalchemy import Column, ForeignKey, String, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
 
 from .database import Base
 from .authtoken import Authtoken
 from .project import Project
-from .userrole import USER_ROLES
 
 
 class Authtoken_Project(Base):
@@ -15,4 +14,4 @@ class Authtoken_Project(Base):
     authtoken = relationship(Authtoken)
     project_id = Column(ForeignKey("project.id"))
     project = relationship(Project)
-    roles = Column(Enum(*USER_ROLES, name="role_enum"))
+    roles = Column(String)

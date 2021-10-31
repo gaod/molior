@@ -1,17 +1,26 @@
 from secrets import token_hex
+from sqlalchemy.sql import or_
 
 from ..app import app
 from ..tools import OKResponse, paginate, array2db
 from ..auth import req_role
 
 from ..model.authtoken import Authtoken
+from ..model.authtoken_project import Authtoken_Project
 
 
 @app.http_get("/api2/tokens")
 @app.authenticated
 async def get_tokens(request):
+    description = request.GET.getone("description", "")
+    exclude_project_id = request.GET.getone("exclude_project_id", None)
 
     query = request.cirrina.db_session.query(Authtoken)
+    if exclude_project_id:
+        query = query.outerjoin(Authtoken_Project)
+        query = query.filter(or_(Authtoken_Project.project_id != exclude_project_id, Authtoken_Project.project_id.is_(None)))
+    if description:
+        query = query.filter(Authtoken.description.ilike("%{}%".format(description)))
     query = paginate(request, query)
     tokens = query.all()
     data = {
