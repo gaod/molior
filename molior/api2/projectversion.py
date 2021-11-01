@@ -2,6 +2,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy import func, or_
 from aiohttp import web
 from shutil import rmtree
+from tempfile import NamedTemporaryFile
 
 from ..app import app, logger
 from ..auth import req_role
@@ -882,3 +883,25 @@ async def get_projectversion_dependents(request):
     # FIXME paginate ??
     data = {"total_result_count": len(results), "results": results}
     return OKResponse(data)
+
+
+@app.http_post("/api2/project/{project_id}/{projectversion_id}/extbuild")
+# @req_role("owner")
+async def external_build_upload(request):
+    logger.info("External Build Upload")
+    reader = await request.multipart()
+    async for part in reader:
+        logger.info("filename: %s" % part.filename)
+        filename = part.filename.replace("/", "")  # no paths separators allowed
+
+        size = 0
+        # FIXME: ensure dir exists
+        with NamedTemporaryFile(dir="/tmp", prefix=filename + ".", delete=False) as f:
+            while True:
+                chunk = await part.read_chunk()  # 8192 bytes by default.
+                if not chunk:
+                    break
+                size += len(chunk)
+                f.write(chunk)
+
+    return OKResponse()
