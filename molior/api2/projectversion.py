@@ -2,11 +2,11 @@ from sqlalchemy.orm import aliased
 from sqlalchemy import func, or_
 from aiohttp import web
 from shutil import rmtree
-from tempfile import NamedTemporaryFile
+from pathlib import Path
 
 from ..app import app, logger
 from ..auth import req_role
-from ..tools import ErrorResponse, OKResponse, is_name_valid, db2array
+from ..tools import ErrorResponse, OKResponse, is_name_valid, db2array, array2db
 from ..api.projectversion import do_lock, do_overlay
 from ..molior.queues import enqueue_aptly
 from ..molior.configuration import Configuration
@@ -889,19 +889,225 @@ async def get_projectversion_dependents(request):
 # @req_role("owner")
 async def external_build_upload(request):
     logger.info("External Build Upload")
-    reader = await request.multipart()
-    async for part in reader:
-        logger.info("filename: %s" % part.filename)
-        filename = part.filename.replace("/", "")  # no paths separators allowed
+    db = request.cirrina.db_session
 
-        size = 0
-        # FIXME: ensure dir exists
-        with NamedTemporaryFile(dir="/tmp", prefix=filename + ".", delete=False) as f:
+    projectversion = get_projectversion(request)
+    if not projectversion:
+        return ErrorResponse(400, "Projectversion not found")
+
+    if projectversion.project.is_mirror:
+        return ErrorResponse(400, "Cannot add dependencies to project which is a mirror")
+
+    if projectversion.is_locked:
+        return ErrorResponse(400, "Cannot add dependencies on a locked projectversion")
+
+    # TODO
+    # check extbuilds allowed
+
+    maintenance_mode = False
+    query = "SELECT value from metadata where name = :key"
+    result = db.execute(query, {"key": "maintenance_mode"})
+    for value in result:
+        if value[0] == "true":
+            maintenance_mode = True
+        break
+
+    if maintenance_mode:
+        return web.Response(status=503, text="Maintenance Mode")
+
+    # create build
+    build = Build(
+        version=None,
+        git_ref=None,
+        ci_branch=None,
+        is_ci=False,
+        sourcename="external build upload",
+        buildstate="building",
+        buildtype="build",
+        sourcerepository=None,
+        maintainer=None,
+    )
+
+    db.add(build)
+    db.commit()
+    await build.build_added()
+
+    srcbuild = Build(
+        version=None,
+        git_ref=None,
+        ci_branch=None,
+        is_ci=False,
+        sourcename="external build upload",
+        buildstate="building",
+        buildtype="source",
+        parent_id=build.id,
+        sourcerepository=None,
+        maintainer=None,
+        projectversions=array2db([str(projectversion.id)])
+    )
+
+    db.add(srcbuild)
+    db.commit()
+    await srcbuild.build_added()
+
+    debbuild = Build(
+        version=None,
+        git_ref=None,
+        ci_branch=None,
+        is_ci=False,
+        sourcename="external build upload",
+        buildstate="building",
+        buildtype="deb",
+        parent_id=srcbuild.id,
+        sourcerepository=None,
+        maintainer=None,
+        projectversion_id=projectversion.id,
+        architecture="amd64"
+    )
+
+    db.add(debbuild)
+    db.commit()
+    await debbuild.build_added()
+
+    buildout_path = Path(Configuration().working_dir) / "buildout"
+
+    async def write_part(build_id, part):
+        filename = part.filename.replace("/", "")  # no paths separators allowed
+        dir_path = buildout_path / str(build_id)
+        if not dir_path.is_dir():
+            dir_path.mkdir(parents=True)
+        with open("%s/%s" % (dir_path, filename), "xb") as f:
             while True:
                 chunk = await part.read_chunk()  # 8192 bytes by default.
                 if not chunk:
                     break
-                size += len(chunk)
                 f.write(chunk)
+
+    build_version = None
+    sourcename = None
+    source_upload = False
+    has_changes_file = False
+    has_buildinfo_file = False
+
+    reader = await request.multipart()
+    async for part in reader:
+        filename = part.filename.replace("/", "")  # no paths separators allowed
+        await build.log("file uploaded: '%s'\n" % filename)
+
+        destbuild_id = None
+
+        pkgname = None
+        version = None
+        arch = None
+        if filename.endswith(".deb"):
+            # FIXME: check number of _
+            pkgname, version, arch = filename[:-4].split("_", 3)
+            destbuild_id = debbuild.id
+
+        elif filename.endswith(".changes"):
+            # FIXME: check number of _
+            pkgname, version, arch = filename[:-4].split("_", 3)
+            destbuild_id = debbuild.id
+            has_changes_file = True
+            if not sourcename:
+                sourcename = pkgname
+
+        elif filename.endswith(".buildinfo"):
+            # FIXME: check number of _
+            pkgname, version, arch = filename[:-4].split("_", 3)
+            destbuild_id = debbuild.id
+            has_buildinfo_file = True
+            if not sourcename:
+                sourcename = pkgname
+
+        elif filename.endswith(".dsc"):
+            # FIXME: check number of _
+            pkgname, version = filename[:-4].split("_", 2)
+            destbuild_id = srcbuild.id
+            source_upload = True
+            if not sourcename:
+                sourcename = pkgname
+
+        elif filename.endswith(".tar.gz") or filename.endswith(".tar.xz"):
+            # FIXME: check number of _
+            pkgname, version = filename[:-7].split("_", 2)
+            destbuild_id = srcbuild.id
+            source_upload = True
+            if not sourcename:
+                sourcename = pkgname
+
+        else:
+            await build.log("W: ignoring unknown file type: '%s'\n" % filename)
+            continue
+
+        if not build_version:
+            build_version = version
+        elif version != build_version:
+            # FIXME: cleanup saved files
+            await build.log("E: version mismatch in uploaded files: '%s'\n" % version)
+            # FIXME: terminate build log
+            return ErrorResponse(400, "version mismatch in uploaded files")
+
+        # FIXME: check arch in projectversion
+        await write_part(destbuild_id, part)
+
+    if not has_changes_file:
+        errmsg = "Missing *.changes file"
+        await build.log("E: %s\n" % errmsg)
+        await build.set_failed()
+        await srcbuild.set_failed()
+        await debbuild.set_failed()
+        db.commit()
+        return ErrorResponse(400, errmsg)
+
+    if not has_buildinfo_file:
+        errmsg = "Missing *.buildinfo file"
+        await build.log("E: %s\n" % errmsg)
+        await build.set_failed()
+        await srcbuild.set_failed()
+        await debbuild.set_failed()
+        db.commit()
+        return ErrorResponse(400, errmsg)
+
+    logger.info("external build upload: %s/%s" % (sourcename, build_version))
+
+    # check if version already exists
+    existing_build = db.query(Build).filter(Build.buildtype == "source",
+                                            Build.sourcerepository_id.is_(None),
+                                            Build.sourcename == sourcename,
+                                            Build.version == build_version).first()
+    if existing_build:
+        errmsg = "build for %s/%s already exists" % (sourcename, version)
+        await build.log("E: %s\n" % errmsg)
+        await build.set_failed()
+        await srcbuild.set_failed()
+        await debbuild.set_failed()
+        db.commit()
+        return ErrorResponse(400, errmsg)
+
+    build.sourcename = sourcename
+    srcbuild.sourcename = sourcename
+    debbuild.sourcename = sourcename
+    build.version = build_version
+    srcbuild.version = build_version
+    debbuild.version = build_version
+    db.commit()
+
+    # publish source package
+    if source_upload:
+        await srcbuild.set_needs_publish()
+        db.commit()
+        await srcbuild.log("I: publishing source package\n")
+        await enqueue_aptly({"src_publish": [srcbuild.id]})
+    else:
+        await srcbuild.log("W: no source package to publish\n")
+        await srcbuild.set_nothing_done()
+        db.commit()
+
+    # publish debian packages
+    await debbuild.set_needs_publish()
+    db.commit()
+    await debbuild.log("I: publishing debian packages\n")
+    await enqueue_aptly({"publish": [debbuild.id]})
 
     return OKResponse()
