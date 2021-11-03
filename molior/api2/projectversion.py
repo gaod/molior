@@ -886,7 +886,7 @@ async def get_projectversion_dependents(request):
 
 
 @app.http_post("/api2/project/{project_id}/{projectversion_id}/extbuild")
-# @req_role("owner")
+@req_role("owner")
 async def external_build_upload(request):
     logger.info("External Build Upload")
     db = request.cirrina.db_session
@@ -991,6 +991,10 @@ async def external_build_upload(request):
 
     reader = await request.multipart()
     async for part in reader:
+        if not part.filename:
+            # FIXME log
+            continue
+
         filename = part.filename.replace("/", "")  # no paths separators allowed
         await build.log("file uploaded: '%s'\n" % filename)
 

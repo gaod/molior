@@ -5,12 +5,14 @@ from aiohttp import web
 from sqlalchemy.sql import func
 
 from ..app import app, logger
-from ..tools import check_admin, check_user_role, parse_int
+from ..tools import parse_int
 from ..molior.configuration import Configuration
 from ..model.project import Project
 from ..model.projectversion import ProjectVersion
 from ..model.user import User
 from ..model.authtoken import Authtoken
+from ..model.authtoken_project import Authtoken_Project
+from ..model.userrole import UserRole
 
 auth_backend = None
 
@@ -125,17 +127,21 @@ async def authenticate_token(request, *kw):
     if not auth_token:
         return False
 
+    token = None
     project_name = request.match_info.get("project_name")
     if project_name:
         p = request.cirrina.db_session.query(Project).filter(func.lower(Project.name) == project_name.lower()).first()
         if p:
             project_id = p.id
-        token = request.cirrina.db_session.query(Authtoken).filter(Authtoken.project_id == project_id,
-                                                                   Authtoken.token == auth_token).first()
-        if token:
-            return True
+        query = request.cirrina.db_session.query(Authtoken).join(Authtoken_Project)
+        query = query.filter(Authtoken_Project.project_id == project_id, Authtoken.token == auth_token)
+        token = query.first()
+    else:
+        query = request.cirrina.db_session.query(Authtoken)
+        query = query.filter(Authtoken.token == auth_token)
+        token = query.first()
 
-    return False
+    return token is not None
 
 
 def load_user(user, db_session):
@@ -152,6 +158,18 @@ def load_user(user, db_session):
 
         db_session.add(db_user)
         db_session.commit()
+
+
+def check_admin(web_session, db_session):
+    """
+    Helper to check current user is admin
+    """
+    if "username" in web_session:
+        res = db_session.query(User).filter_by(username=web_session["username"]).first()
+        if not res:
+            return False
+        return res.is_admin
+    return False
 
 
 def req_admin(function):
@@ -175,6 +193,79 @@ def req_admin(function):
         return web.Response(status=403)
 
     return _wrapper
+
+
+def check_authtoken(request, project_id):
+    auth_token = request.headers.getone("X-MoliorToken", None)
+    if not auth_token:
+        return False
+
+    query = request.cirrina.db_session.query(Authtoken).join(Authtoken_Project)
+    query = query.filter(Authtoken_Project.project_id == project_id, Authtoken.token == auth_token)
+    token = query.first()
+    return token is not None
+
+
+def check_user_role(web_session, db_session, project_id, role, allow_admin=True):
+    """
+    Helper to enforce the current user as a certain role for a given project
+
+    Input :
+        * session <multiDict>
+        * project_id <int>
+        * role <str> or [<str>,<str>,...] : one or multiple role or "any"
+        * allow_admin <bool> : allow admin to bypass
+
+    Output : return a boolean
+        * True : the use
+
+    Examples :
+
+        if( not check_user_role( ThisProject, ThisRole)):
+            return web.Response(status=401, text="permission denied")
+
+        if( not check_user_role( ThisProject, "any")):
+            return web.Response(status=401,
+                                text="You need a role on the project")
+
+        if( not check_user_role( ThisProject, "owner")):
+            return web.Response(status=401,
+                                text="Only project owner can do this")
+
+    """
+    project_id = parse_int(project_id)
+    if not project_id:
+        return False
+
+    if "username" not in web_session:
+        return False  # no session
+
+    user = (
+        db_session.query(User)
+        .filter_by(username=web_session["username"])  # pylint: disable=no-member
+        .first()
+    )
+    if not user:
+        return False
+
+    if allow_admin and user.is_admin:
+        return True
+
+    project = db_session.query(Project).filter_by(id=project_id).first()
+    if not project:
+        return False
+
+    logger.debug("searching role for user %d and project %d", user.id, project.id)
+    role_rec = db_session.query(UserRole).filter_by(user=user, project=project).first()
+    if not role_rec:
+        return False
+
+    roles = [role] if isinstance(role, str) else role
+
+    if "any" in roles or role_rec.role in roles:
+        return True
+
+    return False
 
 
 class req_role(object):
@@ -226,6 +317,7 @@ class req_role(object):
                 project_id = request.match_info.get("project_name")
             projectversion_id = request.match_info.get("projectversion_id")
 
+            project = None
             if not project_id and projectversion_id:
                 pv = request.cirrina.db_session.query(ProjectVersion).filter(
                                     ProjectVersion.id == parse_int(projectversion_id)).first()
@@ -233,12 +325,12 @@ class req_role(object):
                     project_id = pv.project.id
             elif project_id:
                 # try finting project by name
-                p = request.cirrina.db_session.query(Project).filter(
+                project = request.cirrina.db_session.query(Project).filter(
                                     func.lower(Project.name) == project_id.lower()).first()
-                if p:
-                    project_id = p.id
+                if project:
+                    project_id = project.id
                 else:
-                    # try finting project by id
+                    # try finding project by id
                     p = request.cirrina.db_session.query(Project).filter(
                                         Project.id == parse_int(project_id)).first()
                     if p:
@@ -248,7 +340,8 @@ class req_role(object):
             else:
                 return web.Response(status=403, text="forbidden")
 
-            if check_user_role(request.cirrina.web_session,
+            if check_authtoken(request, project_id) or \
+               check_user_role(request.cirrina.web_session,
                                request.cirrina.db_session,
                                project_id,
                                self.role,
