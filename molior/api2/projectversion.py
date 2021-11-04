@@ -1080,7 +1080,7 @@ async def external_build_upload(request):
     # check if version already exists
     existing_build = db.query(Build).filter(Build.buildtype == "build",
                                             Build.sourcerepository_id.is_(None),
-                                            Build.projectversion_id = projectversion.id,
+                                            Build.projectversion_id == projectversion.id,
                                             Build.sourcename == sourcename,
                                             Build.version == build_version).first()
     if existing_build:
