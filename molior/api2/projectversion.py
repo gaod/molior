@@ -915,7 +915,7 @@ async def external_build_upload(request):
     if maintenance_mode:
         return web.Response(status=503, text="Maintenance Mode")
 
-    # create build
+    # create builds
     build = Build(
         version=None,
         git_ref=None,
@@ -926,6 +926,7 @@ async def external_build_upload(request):
         buildtype="build",
         sourcerepository=None,
         maintainer=None,
+        projectversion_id=projectversion.id,
     )
 
     db.add(build)
@@ -933,7 +934,7 @@ async def external_build_upload(request):
     await build.build_added()
 
     srcbuild = Build(
-        version=None,
+        version="unknown",
         git_ref=None,
         ci_branch=None,
         is_ci=False,
@@ -943,6 +944,7 @@ async def external_build_upload(request):
         parent_id=build.id,
         sourcerepository=None,
         maintainer=None,
+        projectversion_id=projectversion.id,
         projectversions=array2db([str(projectversion.id)])
     )
 
@@ -1076,8 +1078,9 @@ async def external_build_upload(request):
     logger.info("external build upload: %s/%s" % (sourcename, build_version))
 
     # check if version already exists
-    existing_build = db.query(Build).filter(Build.buildtype == "source",
+    existing_build = db.query(Build).filter(Build.buildtype == "build",
                                             Build.sourcerepository_id.is_(None),
+                                            Build.projectversion_id = projectversion.id,
                                             Build.sourcename == sourcename,
                                             Build.version == build_version).first()
     if existing_build:
