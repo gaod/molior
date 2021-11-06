@@ -3,6 +3,7 @@ from sqlalchemy import func, or_
 from aiohttp import web
 from shutil import rmtree
 from pathlib import Path
+from aiofile import AIOFile, Writer
 
 from ..app import app, logger
 from ..auth import req_role
@@ -888,16 +889,13 @@ async def get_projectversion_dependents(request):
 @app.http_post("/api2/project/{project_id}/{projectversion_id}/extbuild")
 @req_role("owner")
 async def external_build_upload(request):
-    logger.info("External Build Upload")
     db = request.cirrina.db_session
 
     projectversion = get_projectversion(request)
     if not projectversion:
         return ErrorResponse(400, "Projectversion not found")
-
     if projectversion.project.is_mirror:
         return ErrorResponse(400, "Cannot add dependencies to project which is a mirror")
-
     if projectversion.is_locked:
         return ErrorResponse(400, "Cannot add dependencies on a locked projectversion")
 
@@ -911,7 +909,6 @@ async def external_build_upload(request):
         if value[0] == "true":
             maintenance_mode = True
         break
-
     if maintenance_mode:
         return web.Response(status=503, text="Maintenance Mode")
 
@@ -931,6 +928,7 @@ async def external_build_upload(request):
 
     db.add(build)
     db.commit()
+    await build.logtitle("External Build Upload")
     await build.build_added()
 
     srcbuild = Build(
@@ -950,6 +948,7 @@ async def external_build_upload(request):
 
     db.add(srcbuild)
     db.commit()
+    await srcbuild.logtitle("External Source Upload")
     await srcbuild.build_added()
 
     debbuild = Build(
@@ -969,7 +968,10 @@ async def external_build_upload(request):
 
     db.add(debbuild)
     db.commit()
+    await debbuild.logtitle("External Debian Package Upload")
     await debbuild.build_added()
+
+    await build.log("I: Receiving files...\n")
 
     buildout_path = Path(Configuration().working_dir) / "buildout"
 
@@ -978,12 +980,14 @@ async def external_build_upload(request):
         dir_path = buildout_path / str(build_id)
         if not dir_path.is_dir():
             dir_path.mkdir(parents=True)
-        with open("%s/%s" % (dir_path, filename), "xb") as f:
-            while True:
+        async with AIOFile("%s/%s" % (dir_path, filename), "xb") as afp:
+            writer = Writer(afp)
+            while True:  # FIXME: timeout
+                # FIXME: might not return, timeout and cancel
                 chunk = await part.read_chunk()  # 8192 bytes by default.
                 if not chunk:
                     break
-                f.write(chunk)
+                await writer(chunk)
 
     build_version = None
     sourcename = None
@@ -998,7 +1002,7 @@ async def external_build_upload(request):
             continue
 
         filename = part.filename.replace("/", "")  # no paths separators allowed
-        await build.log("file uploaded: '%s'\n" % filename)
+        await build.log(" - %s\n" % filename)
 
         destbuild_id = None
 
@@ -1054,8 +1058,11 @@ async def external_build_upload(request):
             # FIXME: terminate build log
             return ErrorResponse(400, "version mismatch in uploaded files")
 
+        await build.log("saving %s\n" % filename)
         # FIXME: check arch in projectversion
         await write_part(destbuild_id, part)
+
+    await build.log("I: Verifying uploaded files...\n")
 
     if not has_changes_file:
         errmsg = "Missing *.changes file"
@@ -1075,7 +1082,7 @@ async def external_build_upload(request):
         db.commit()
         return ErrorResponse(400, errmsg)
 
-    logger.info("external build upload: %s/%s" % (sourcename, build_version))
+    await build.log("I: Found external build: %s/%s" % (sourcename, build_version))
 
     # check if version already exists
     existing_build = db.query(Build).filter(Build.buildtype == "build",
