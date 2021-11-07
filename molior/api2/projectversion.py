@@ -919,7 +919,7 @@ async def external_build_upload(request):
         ci_branch=None,
         is_ci=False,
         sourcename="external build upload",
-        buildstate="building",
+        buildstate="new",
         buildtype="build",
         sourcerepository=None,
         maintainer=None,
@@ -937,7 +937,7 @@ async def external_build_upload(request):
         ci_branch=None,
         is_ci=False,
         sourcename="external build upload",
-        buildstate="building",
+        buildstate="new",
         buildtype="source",
         parent_id=build.id,
         sourcerepository=None,
@@ -956,7 +956,7 @@ async def external_build_upload(request):
         ci_branch=None,
         is_ci=False,
         sourcename="external build upload",
-        buildstate="building",
+        buildstate="new",
         buildtype="deb",
         parent_id=srcbuild.id,
         sourcerepository=None,
@@ -1103,7 +1103,7 @@ async def external_build_upload(request):
         db.commit()
         return ErrorResponse(400, errmsg)
 
-    build.set_publishing()
+    await build.set_building()
     db.commit()
 
     # publish source package
