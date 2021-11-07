@@ -57,16 +57,19 @@ async def create_token(request):
 
 @app.http_delete("/api2/tokens")
 @req_role("owner")
-async def delete_project_token(request):
+async def delete_token(request):
     """
-    Delete auth token
+    Delete authtoken
     """
     params = await request.json()
     token_id = params.get("id")
 
     db = request.cirrina.db_session
-    query = request.cirrina.db_session.query(Authtoken).filter(Authtoken.id == token_id)
-    token = query.first()
+    mappings = db.query(Authtoken_Project).filter(Authtoken_Project.authtoken_id == token_id).all()
+    for mapping in mappings:
+        db.delete(mapping)
+
+    token = db.query(Authtoken).filter(Authtoken.id == token_id).first()
     db.delete(token)
     db.commit()
 
