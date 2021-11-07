@@ -948,7 +948,6 @@ async def external_build_upload(request):
 
     db.add(srcbuild)
     db.commit()
-    await srcbuild.logtitle("External Source Upload")
     await srcbuild.build_added()
 
     debbuild = Build(
@@ -968,10 +967,9 @@ async def external_build_upload(request):
 
     db.add(debbuild)
     db.commit()
-    await debbuild.logtitle("External Debian Package Upload")
     await debbuild.build_added()
 
-    await build.log("I: Receiving files...\n")
+    await build.log("I: Receiving uploaded files\n")
 
     buildout_path = Path(Configuration().working_dir) / "buildout"
 
@@ -1083,21 +1081,6 @@ async def external_build_upload(request):
 
     await build.log("I: Found external build: %s/%s\n" % (sourcename, build_version))
 
-    # check if version already exists
-    existing_build = db.query(Build).filter(Build.buildtype == "build",
-                                            Build.sourcerepository_id.is_(None),
-                                            Build.projectversion_id == projectversion.id,
-                                            Build.sourcename == sourcename,
-                                            Build.version == build_version).first()
-    if existing_build:
-        errmsg = "build for %s/%s already exists" % (sourcename, version)
-        await build.log("E: %s\n" % errmsg)
-        await build.set_failed()
-        await srcbuild.set_failed()
-        await debbuild.set_failed()
-        db.commit()
-        return ErrorResponse(400, errmsg)
-
     build.sourcename = sourcename
     srcbuild.sourcename = sourcename
     debbuild.sourcename = sourcename
@@ -1106,11 +1089,33 @@ async def external_build_upload(request):
     debbuild.version = build_version
     db.commit()
 
+    # check if version already exists
+    existing_build = db.query(Build).filter(Build.buildtype == "build",
+                                            Build.sourcerepository_id.is_(None),
+                                            Build.projectversion_id == projectversion.id,
+                                            Build.buildstate == "successful",
+                                            Build.is_deleted.is_(False),
+                                            Build.sourcename == sourcename,
+                                            Build.version == build_version).first()
+    if existing_build:
+        errmsg = "build for %s/%s already exists" % (sourcename, version)
+        await build.log("E: %s\n" % errmsg)
+        await build.set_failed()
+        await build.logtitle("Done", no_footer_newline=True, no_header_newline=False)
+        await srcbuild.set_failed()
+        await debbuild.set_failed()
+        db.commit()
+        return ErrorResponse(400, errmsg)
+
+    build.set_publishing()
+    db.commit()
+
     # publish source package
+    await srcbuild.logtitle("External Source Upload")
     if source_upload:
         await srcbuild.set_needs_publish()
         db.commit()
-        await srcbuild.log("I: publishing source package\n")
+        await srcbuild.log("I: verifying source package\n")
         await enqueue_aptly({"src_publish": [srcbuild.id]})
     else:
         await srcbuild.log("W: no source package to publish\n")
@@ -1118,9 +1123,10 @@ async def external_build_upload(request):
         db.commit()
 
     # publish debian packages
+    await debbuild.logtitle("External Debian Package Upload")
     await debbuild.set_needs_publish()
     db.commit()
-    await debbuild.log("I: publishing debian packages\n")
+    await debbuild.log("I: verifying debian packages\n")
     await enqueue_aptly({"publish": [debbuild.id]})
 
     return OKResponse()
