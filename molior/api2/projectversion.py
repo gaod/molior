@@ -1058,7 +1058,6 @@ async def external_build_upload(request):
             # FIXME: terminate build log
             return ErrorResponse(400, "version mismatch in uploaded files")
 
-        await build.log("saving %s\n" % filename)
         # FIXME: check arch in projectversion
         await write_part(destbuild_id, part)
 
@@ -1082,7 +1081,7 @@ async def external_build_upload(request):
         db.commit()
         return ErrorResponse(400, errmsg)
 
-    await build.log("I: Found external build: %s/%s" % (sourcename, build_version))
+    await build.log("I: Found external build: %s/%s\n" % (sourcename, build_version))
 
     # check if version already exists
     existing_build = db.query(Build).filter(Build.buildtype == "build",
