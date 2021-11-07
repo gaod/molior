@@ -123,7 +123,7 @@ async def DebSrcPublish(build_id, repo_id, sourcename, version, projectversions,
         files2delete = publish_files
         changes_file = get_debchanges_filename(sourcepath, sourcename, version, "source")
         if Path(changes_file).exists():
-            files2delete.append("{}/{}".format(sourcepath, changes_file))
+            files2delete.append(changes_file)
         for f in files2delete:
             logger.debug("publisher: removing %s", f)
             try:
