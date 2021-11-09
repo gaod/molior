@@ -1111,6 +1111,8 @@ class AptlyWorker:
             for src in srcpkgs:
                 if not src.projectversions:
                     continue
+                if src.buildstate == "successful":
+                    continue
                 for f in src.debianpackages:
                     for projectversion_id in src.projectversions:
                         projectversion = get_projectversion_byid(projectversion_id, session)
@@ -1131,6 +1133,8 @@ class AptlyWorker:
                         to_delete[repo_name].append((f.name, src.version, "source"))
 
             for deb in debpkgs:
+                if deb.buildstate != "successful":  # only successful deb builds have packages to delete
+                    continue
                 for f in deb.debianpackages:
                     projectversion = deb.projectversion
                     repo_name = "%s-%s-%s-%s-%s" % (projectversion.basemirror.project.name, projectversion.basemirror.name,
