@@ -1,5 +1,4 @@
 import re
-import shlex
 import pytz
 import json
 
@@ -133,7 +132,7 @@ async def get_changelog_attr(name, path):
         nonlocal err
         err += line
 
-    process = Launchy(shlex.split("dpkg-parsechangelog -S {}".format(name)), outh, errh, cwd=str(path))
+    process = Launchy("dpkg-parsechangelog -S {}".format(name), outh, errh, cwd=str(path))
     await process.launch()
     ret = await process.wait()
     if ret != 0:
